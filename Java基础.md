@@ -207,7 +207,24 @@ Vector每次扩容2倍。
 
 插入删除的时候需要从链表头部或者尾部开始遍历，找到对应的元素然后执行插入或者删除操作。
 
+#### Set
+
 * HashSet的底层是HashMap
+* add
+
+```java
+public boolean add(E e) {
+	return map.put(e, PRESENT)==null;
+}
+```
+
+* remove
+
+```java
+public boolean remove(Object o) {
+	return map.remove(o)==PRESENT;
+}
+```
 
 #### Map：
 
@@ -233,9 +250,55 @@ Vector每次扩容2倍。
 
 4.如果对应的数组下标为null就直接新建node放进去。
 
-5.要是该节点不为空，就判断该节点的key是否相等，相等就覆盖，如果不相等就判断是否为红黑树节点，是的话就找key相同的节点，如果有就覆盖，如果没有就新建一个节点。
+5.要是该节点不为空，就判断该节点的key是否相等（key相等是通过hash值和key的equals方法共同决定的），相等就覆盖，如果不相等就判断是否为红黑树节点，是的话就找key相同的节点，如果有就覆盖，如果没有就新建一个节点。
 
 6.如果不是红黑树节点，就去遍历链表，如果有就覆盖，如果没有就新建一个，如果链表长度大于8就将链表转化成红黑树。（树化操作，如果数组长度小于64只会扩容，不会树化）
 
 7.插入成功后，如果size超过了最大阈值就进行扩容。
+
+* HashMap的resize
+
+新建一个容量为原来2倍的数组，将原数组中的元素进行rehash操作。然后1.8的rehash对于链表的操作时一个尾插，1.7是头插，1.7在并发情况下可能会造成死循环。
+
+***
+
+通过设置断点让线程1和线程2同时debug到transfer方法(3.3小节代码块)的首行。注意此时两个线程已经成功添加数据。放开thread1的断点至transfer方法的“Entry next = e.next;” 这一行；然后放开线程2的的断点，让线程2进行resize。结果如下图。
+
+![](https://awps-assets.meituan.net/mit-x/blog-images-bundle-2016/7df99266.png)
+
+注意，Thread1的 e 指向了key(3)，而next指向了key(7)，其在线程二rehash后，指向了线程二重组后的链表。
+
+线程一被调度回来执行，先是执行 newTalbe[i] = e， 然后是e = next，导致了e指向了key(7)，而下一次循环的next = e.next导致了next指向了key(3)。
+
+![](https://awps-assets.meituan.net/mit-x/blog-images-bundle-2016/4c3c28fb.png)
+
+![](https://awps-assets.meituan.net/mit-x/blog-images-bundle-2016/6c8d086a.png)
+
+e.next = newTable[i] 导致 key(3).next 指向了 key(7)。注意：此时的key(7).next 已经指向了key(3)， 环形链表就这样出现了。
+
+![](https://awps-assets.meituan.net/mit-x/blog-images-bundle-2016/6eed9aaf.png)
+
+于是，当我们用线程一调用map.get(11)时，悲剧就出现了——Infinite Loop（无限循环）。
+
+***
+
+#### ConcurrentHashMap
+
+* 1.7使用分段数组加链表实现，对整个桶数组进行分段，每一个Segment只锁住容器中的一部分数据，多线程访问不同数据段的数据时不会产生锁冲突，降低了锁粒度，提高并发度。对元素进行操作的时候会先定位到对应的Segment获取到锁只后进行操作。
+
+  Segment是一个内部类，继承了ReentrantLock，还维护了一组HashEntry用于存储键值对数据。默认16个Segment。
+
+  size操作先尝试不加锁，如果连续两次不加锁操作得到的结果是一致的话，那么就可以认为这个结果是正确的，如果尝试次数超过三次的话就需要对每个Segment加锁。
+
+* 1.8取消了分段锁，采用和HashMap类似的数组链表红黑树的结构，同时使用cas和synchronized保证并发安全。synchronized只锁定当前链表或者红黑树的首节点，所以只要不产生hash冲突的话就不会产生并发。
+
+#### LinkedHashMap
+
+LinkedHashMap继承自HashMap，节点类是Entry，继承了HashMap的Node，并且添加了首尾指针。
+
+LinkedHashMap维护了首位指针来维护插入顺序或者访问顺序。通过重写HashMap的两个空方法，一个是afterNodeAcess去实现把访问的元素移动到链表的末尾，一个是afterNodeInsertion实现当一个我们定义的条件发生时去删除链表头部的元素，也就是最久没被访问的元素。我们可以通过重写removeEldestEntry方法去定义这个条件。
+
+#### fail-fast
+
+快速失败(fail-fast)是Java集合的一种错误检测机制，本质上是集合里维护着一个modCount，每次对集合元素进行修改时都会使这个modCount+1，在使用迭代器遍历集合的时候，在每一次访问元素的时候都会去比较一下modCount是否和预期的一致，如果不一致就抛ConcurrentModificationException。所以在使用迭代器遍历集合的时候不能去对调用集合的remove，add对元素进行修改，不然就会触发快速失败机制。需要删除的时候用iteractor的remove方法，这个方法能修改预期值，所以不会抛异常。
 
