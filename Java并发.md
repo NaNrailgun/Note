@@ -187,13 +187,158 @@ class CallableTestMain{
 
   3.在轻量级锁时，如果线程自旋等待锁超过一定的次数之后，或者一个线程持有锁，另一个在等待锁，第三个到来的时候轻量级锁就会升级为重量级锁。重量级锁会使所有等待锁的线程进入阻塞状态，阻塞线程和唤醒线程的时候，操作系统需要进行系统调用，开销会增大。
 
-  
+#### 悲观锁
 
-  
+悲观锁在操作数据的时候持悲观态度。认为其他人也会同时操作数据，所以在操作数据的时候要将数据锁住，在上锁期间，其他人不能访问到这个数据，直到操作完成之后才会将锁释放。在Java中，synchronized，ReentrantLock都是悲观锁的思想。
 
-  
+#### 乐观锁
 
-  
+乐观锁在操作数据的时候持乐观态度。认为其他人不会同时修改数据，所以操作数据的时候不会上锁，只是在执行期间判断别人是否修改了数据，如果在操作数据期间别人修改了数据就放弃修改。乐观锁能使用版本号或者CAS去实现，在Java中的atomic包就是使用CAS，是乐观锁的思想。
+
+#### 乐观锁和悲观锁的应用场景
+
+乐观锁适合读多写少的场景，悲观锁适合写多的场景。
+
+#### 乐观锁的实现
+
+版本号
+
+在数据库中加上一个版本号字段，表示数据被修改的次数，数据如果被修改了就版本号加1，读取数据的时候顺便把版本号读出来，然后修改的时候判断说此时的版本号和我们刚才读取的版本号是否相同，如果相同就说明在这段时间里没有其他线程修改数据，那么就写入数据，然后版本号加1，如果不相同就说明在这段时间里有其他线程修改了数据，那么就放弃或者重试。
+
+CAS
+
+compare and swap，比较替换。CAS有三个操作数，分别是内存值，期待值和修改值。进行CAS操作的时候会先比较一下这个内存中的值和我们期待的值是不是相等，如果相等就说明在这段时间里面没有其他线程修改，那么就将内存值替换成我们的修改值。CAS是一个原子性操作，是依赖cpu实现的。
+
+CAS会出现ABA问题，解决方法是使用版本号或者时间戳。
+
+Java原子类底层使用compareAndSwapXXX的方法，传入参数是（哪个对象，偏移值，期待值，修改值）
+
+#### 乐观锁的缺点
+
+循环开销大
+
+如果一直CAS失败的话就会一直循环，会给cpu带来很大的负担。
+
+#### ThreadLocal
+
+ThreadLocal作为线程独享的变量，自己通过ThreadLocal存储的变量只有自己的线程才能访问到。
+
+ThreadLocal的原理
+
+每一个Thread对象内部都会维护一个ThreadLocalMap，通过一个ThreadLocal对象存值的时候使用的是这个ThreadLocal对象为key，去存到自身线程维护的ThreadLocalMap里面的，实现线程与线程之间的隔离。
+
+应用场景
+
+ThreadLocal能存储当前数据库连接，传值，session管理。
+
+细节
+
+key为弱引用，value为强引用。说是为了去应对内存泄漏，就是当ThreadLocal对象失去外部的强引用的时候，这个ThreadLocal对象能被回收，这时候ThreadLocalMap中以这个对象为key的Entry，他的key就变成了null，然后ThreadLocal在set，get方法都会对这个key为null的Entry去进行处理。但一般用完之后就手动remove吧。
+
+#### ThreadPoolExecutor
+
+核心参数
+
+```java
+	public ThreadPoolExecutor(int corePoolSize,//核心线程数                    
+                              int maximumPoolSize,//最大线程数
+                              long keepAliveTime,//当线程数超过核心线程数时，超过该时间，非核心线程被销毁
+                              TimeUnit unit,//时间单位
+                              BlockingQueue<Runnable> workQueue,//阻塞队列，当新任务来的时候会判断当前运行的线程是否达到了核心线程数，达到就放在队列中
+                              ThreadFactory threadFactory,//用于创建线程
+                              RejectedExecutionHandler handler//拒绝策略
+                             ) {
+        if (corePoolSize < 0 ||
+            maximumPoolSize <= 0 ||
+            maximumPoolSize < corePoolSize ||
+            keepAliveTime < 0)
+            throw new IllegalArgumentException();
+        if (workQueue == null || threadFactory == null || handler == null)
+            throw new NullPointerException();
+        this.corePoolSize = corePoolSize;
+        this.maximumPoolSize = maximumPoolSize;
+        this.workQueue = workQueue;
+        this.keepAliveTime = unit.toNanos(keepAliveTime);
+        this.threadFactory = threadFactory;
+        this.handler = handler;
+    }
+```
+
+状态
+
+| 状态       | 说明                                                       |
+| ---------- | ---------------------------------------------------------- |
+| running    | 运行中状态，能接收新任务                                   |
+| shoutdown  | 关闭状态，不再接受新任务，继续处理已保存的阻塞队列中的任务 |
+| stop       | 不接受新任务，不处理队列中的任务，会中断正在处理任务的线程 |
+| tidying    | 所有任务终止，workCount（有效线程数）为0                   |
+| terminated | 在terminated方法执行后变为该状态                           |
+
+![图3 线程池生命周期](https://p0.meituan.net/travelcube/582d1606d57ff99aa0e5f8fc59c7819329028.png)
+
+任务调度
+
+1.检测线程池状态，如果不为Running直接拒绝。
+
+2.如果工作线程数小于核心线程数的话就将提交的任务作为firstTask去add一个Worker
+
+3.如果工作线程数大于等于核心线程数的话，如果阻塞队列没满，就将这个任务扔到阻塞队列里面（源码里面做了双重检查，避免说把任务放进队列里的过程中，线程池状态改变还有预防线程池里的线程死光）
+
+4.如果阻塞队列满了，然后工作线程数大于等于核心线程数，而且工作线程数小于最大线程数的时候，就将新提交的任务作为firstTask去add一个Worker。
+
+5.如果工作线程数达到最大线程数，而且阻塞队列也满了的话就会去执行拒绝策略。
+
+addWorker
+
+做一些线程池状态的判断，然后新建一个Worker，然后调用Worker里面线程的start方法。
+
+run方法走的是runWorker方法
+
+runWorker
+
+runWorker会先执行传入的firstTask，执行完成或者说firstTask为空的时候就会去getTask去阻塞队列里面获取任务，在getTask方法里面会根据一些状态去判断是要阻塞当前的线程还是返回null，返回null的话，线程就会退出然后死亡。
+
+阻塞队列
+
+| 名称                  | 描述                                                         |
+| --------------------- | ------------------------------------------------------------ |
+| ArrayBlockingQueue    | 数组实现，先进先出。支持公平锁和非公平锁，需要传入容量大小   |
+| LinkedBlockingQueue   | 链表实现，先进先出。默认长度为Integer.MAX_VALUE              |
+| PriorityBlockingQueue | 堆实现，支持按优先级排序。无界                               |
+| DelayQueue            | 延迟队列，在创建元素时可以指定经过多久才能获取到当前元素     |
+| SynchronousQueue      | 一个不存储元素的阻塞队列，每一个put操作必须等待take操作，否则不能添加元素。支持公平锁和非公平锁。这个阻塞队列的一个使用场景是在Executors.newCashedThreadPool()，这个线程池在新任务到来的时候创建新线程，如果有空闲线程的话就会重复使用，否则超过60秒就会被回收 |
+| LinkedTransferQueue   | 链表实现，无界，相比于其他阻塞队列增加了transfer和tryTransfer方法 |
+| LinkedBlockingDeque   | 链表实现，双向阻塞队列，双端都可以添加和移除元素             |
+
+transfer：
+
+1. 当有消费者线程阻塞等待时，调用transfer方法的生产者线程不会将元素存入队列，而是直接将元素传递给消费者；
+2. 如果调用transfer方法的生产者线程发现没有正在等待的消费者线程，则会将元素入队，然后会阻塞等待，直到有一个消费者线程来获取该元素。
+
+tryTransfer：
+
+当生产者线程调用tryTransfer方法时，如果没有消费者等待接收元素，则会立即返回false。该方法和transfer方法的区别就是tryTransfer方法无论消费者是否接收，方法立即返回，而transfer方法必须等到消费者消费后才返回。
+
+拒绝策略
+
+当任务到来时，如果当前运行的线程数达到最大线程数，而且阻塞队列也满了的时候就会触发拒绝策略。
+
+- **`ThreadPoolExecutor.AbortPolicy`**：抛出 `RejectedExecutionException`来拒绝新任务的处理。
+- **`ThreadPoolExecutor.CallerRunsPolicy`**：调用执行自己的线程运行任务，也就是直接在调用`execute`方法的线程中运行(`run`)被拒绝的任务，如果执行程序已关闭，则会丢弃该任务。因此这种策略会降低对于新任务提交速度，影响程序的整体性能。如果您的应用程序可以承受此延迟并且你要求任何一个任务请求都要被执行的话，你可以选择这个策略。
+- **`ThreadPoolExecutor.DiscardPolicy`：** 不处理新任务，直接丢弃掉。
+- **`ThreadPoolExecutor.DiscardOldestPolicy`：** 此策略将丢弃最早的未处理的任务请求。
+
+线程池的应用场景
+
+快速响应用户请求
+
+比如说要查询一个商品，我们需要对商品的价格，库存，优惠，图片的信息聚合起来再展示给用户，如果串行获取的话就会比较慢，我们可以用线程池，把获取价格，获取优惠，获取库存去包装成一个个任务，然后提交给线程池，让任务并行的执行，缩短响应的时间。这个场景下，因为是要快速嘛，所以线程池的话不应该设置队列去缓冲并发任务，需要调高核心线程数和最大线程数去创造尽可能多的线程去快速完成任务。
+
+问题
+
+核心线程数，最大线程数设置过小，如果流量过大的话容易导致频繁地触发拒绝策略。
+
+阻塞队列容量设置过大，容易导致任务在队列中堆积，最大线程数不生效，导致请求超时。
 
 
 
