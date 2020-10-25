@@ -328,6 +328,12 @@ tryTransfer：
 - **`ThreadPoolExecutor.DiscardPolicy`：** 不处理新任务，直接丢弃掉。
 - **`ThreadPoolExecutor.DiscardOldestPolicy`：** 此策略将丢弃最早的未处理的任务请求。
 
+线程池异常处理问题
+
+1.submit，底层是Future，线程不会死亡。
+
+2.UncaughtExceptionHandler，jvm调用，线程死亡。
+
 线程池的应用场景
 
 快速响应用户请求
@@ -339,6 +345,42 @@ tryTransfer：
 核心线程数，最大线程数设置过小，如果流量过大的话容易导致频繁地触发拒绝策略。
 
 阻塞队列容量设置过大，容易导致任务在队列中堆积，最大线程数不生效，导致请求超时。
+
+FutureTask
+
+运行我们传入的Callable的call方法，然后将返回值或者异常存储在这个FutureTask的result里面，其他的线程能调用这个FutureTask的get方法获取result的值。当使用get去获取值的时候，如果这时候call方法还没执行完，还没得到结果，就会新建一个WaitNode节点，然后入队，然后将这个线程挂起。当计算完成得到结果的时候就会去唤醒等待队列里面的线程。
+
+AQS
+
+AQS介绍
+
+AQS全称是AbstractQueuedSynchronizer，是一个用来构建锁和同步器的一个框架，AQS提供的是一个线程的排队阻塞的一个功能，这个功能在很多的并发工具都需要使用，所以把这一部分相同的逻辑抽取出来，搞了个AQS。使用AQS去实现同步器的话就不需要再去关心线程的排队和阻塞，只需要继承AQS，然后重写一下钩子方法就能实现出自己的一个同步器。在Java中的ReentrantLock，Semaphore，ReentrantReadWriteLock都是基于AQS实现的。
+
+AQS内部使用一个volatile修饰的int变量来表示资源的状态，变量名叫state。AQS内部维护了一个先进先出的双端队列，用于存储被阻塞的线程的节点，使用head指针和tail指针标识队列的头部和尾部。节点还分是独占的还是共享的，比如ReentrantLock的节点就是独占的，Semaphore的节点是共享的。
+
+AQS获取资源的核心方法是acquire方法，在acquire里面有一个tyrAcquire方法，这是一个钩子，需要子类重写具体的资源的获取逻辑。release方法是释放资源的方法，里面有tryRelease方法，需要子类重写释放资源的具体逻辑。
+
+AQS线程排队和阻塞的流程
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
