@@ -201,43 +201,41 @@ class CallableTestMain{
 
 #### 乐观锁的实现
 
-版本号
+* 版本号
 
-在数据库中加上一个版本号字段，表示数据被修改的次数，数据如果被修改了就版本号加1，读取数据的时候顺便把版本号读出来，然后修改的时候判断说此时的版本号和我们刚才读取的版本号是否相同，如果相同就说明在这段时间里没有其他线程修改数据，那么就写入数据，然后版本号加1，如果不相同就说明在这段时间里有其他线程修改了数据，那么就放弃或者重试。
+  在数据库中加上一个版本号字段，表示数据被修改的次数，数据如果被修改了就版本号加1，读取数据的时候顺便把版本号读出来，然后修改的时候判断说此时的版本号和我们刚才读取的版本号是否相同，如果相同就说明在这段时间里没有其他线程修改数据，那么就写入数据，然后版本号加1，如果不相同就说明在这段时间里有其他线程修改了数据，那么就放弃或者重试。
 
-CAS
+* CAS
 
-compare and swap，比较替换。CAS有三个操作数，分别是内存值，期待值和修改值。进行CAS操作的时候会先比较一下这个内存中的值和我们期待的值是不是相等，如果相等就说明在这段时间里面没有其他线程修改，那么就将内存值替换成我们的修改值。CAS是一个原子性操作，是依赖cpu实现的。
+  compare and swap，比较替换。CAS有三个操作数，分别是内存值，期待值和修改值。进行CAS操作的时候会先比较一下这个内存中的值和我们期待的值是不是相等，如果相等就说明在这段时间里面没有其他线程修改，那么就将内存值替换成我们的修改值。CAS是一个原子性操作，是依赖cpu实现的。
 
-CAS会出现ABA问题，解决方法是使用版本号或者时间戳。
+  CAS会出现ABA问题，解决方法是使用版本号或者时间戳。
 
-Java原子类底层使用compareAndSwapXXX的方法，传入参数是（哪个对象，偏移值，期待值，修改值）
+  Java原子类底层使用compareAndSwapXXX的方法，传入参数是（哪个对象，偏移值，期待值，修改值）
 
 #### 乐观锁的缺点
 
-循环开销大
-
-如果一直CAS失败的话就会一直循环，会给cpu带来很大的负担。
+循环开销大，如果一直CAS失败的话就会一直循环，会给cpu带来很大的负担。
 
 #### ThreadLocal
 
 ThreadLocal作为线程独享的变量，自己通过ThreadLocal存储的变量只有自己的线程才能访问到。
 
-ThreadLocal的原理
+* ThreadLocal的原理
 
-每一个Thread对象内部都会维护一个ThreadLocalMap，通过一个ThreadLocal对象存值的时候使用的是这个ThreadLocal对象为key，去存到自身线程维护的ThreadLocalMap里面的，实现线程与线程之间的隔离。
+  每一个Thread对象内部都会维护一个ThreadLocalMap，通过一个ThreadLocal对象存值的时候使用的是这个ThreadLocal对象为key，去存到自身线程维护的ThreadLocalMap里面的，实现线程与线程之间的隔离。
 
-应用场景
+* 应用场景
 
-ThreadLocal能存储当前数据库连接，传值，session管理。
+  ThreadLocal能存储当前数据库连接，传值，session管理。
 
-细节
+* 细节
 
-key为弱引用，value为强引用。说是为了去应对内存泄漏，就是当ThreadLocal对象失去外部的强引用的时候，这个ThreadLocal对象能被回收，这时候ThreadLocalMap中以这个对象为key的Entry，他的key就变成了null，然后ThreadLocal在set，get方法都会对这个key为null的Entry去进行处理。但一般用完之后就手动remove吧。
+  key为弱引用，value为强引用。说是为了去应对内存泄漏，就是当ThreadLocal对象失去外部的强引用的时候，这个ThreadLocal对象能被回收，这时候ThreadLocalMap中以这个对象为key的Entry，他的key就变成了null，然后ThreadLocal在set，get方法都会对这个key为null的Entry去进行处理。但一般用完之后就手动remove吧。
 
 #### ThreadPoolExecutor
 
-核心参数
+* 核心参数
 
 ```java
 	public ThreadPoolExecutor(int corePoolSize,//核心线程数                    
@@ -264,7 +262,7 @@ key为弱引用，value为强引用。说是为了去应对内存泄漏，就是
     }
 ```
 
-状态
+* 线程池状态
 
 | 状态       | 说明                                                       |
 | ---------- | ---------------------------------------------------------- |
@@ -276,23 +274,21 @@ key为弱引用，value为强引用。说是为了去应对内存泄漏，就是
 
 ![图3 线程池生命周期](https://p0.meituan.net/travelcube/582d1606d57ff99aa0e5f8fc59c7819329028.png)
 
-任务调度
+* 任务调度
 
-1.检测线程池状态，如果不为Running直接拒绝。
+  1.检测线程池状态，如果不为Running直接拒绝。
 
-2.如果工作线程数小于核心线程数的话就将提交的任务作为firstTask去add一个Worker
+  2.如果工作线程数小于核心线程数的话就将提交的任务作为firstTask去add一个Worker
 
-3.如果工作线程数大于等于核心线程数的话，如果阻塞队列没满，就将这个任务扔到阻塞队列里面（源码里面做了双重检查，避免说把任务放进队列里的过程中，线程池状态改变还有预防线程池里的线程死光）
+  3.如果工作线程数大于等于核心线程数的话，如果阻塞队列没满，就将这个任务扔到阻塞队列里面（源码里面做了双重检查，避免说把任务放进队列里的过程中，线程池状态改变还有预防线程池里的线程死光）
 
-4.如果阻塞队列满了，然后工作线程数大于等于核心线程数，而且工作线程数小于最大线程数的时候，就将新提交的任务作为firstTask去add一个Worker。
+  4.如果阻塞队列满了，然后工作线程数大于等于核心线程数，而且工作线程数小于最大线程数的时候，就将新提交的任务作为firstTask去add一个Worker。
 
-5.如果工作线程数达到最大线程数，而且阻塞队列也满了的话就会去执行拒绝策略。
+  5.如果工作线程数达到最大线程数，而且阻塞队列也满了的话就会去执行拒绝策略。
 
 addWorker
 
-做一些线程池状态的判断，然后新建一个Worker，然后调用Worker里面线程的start方法。
-
-run方法走的是runWorker方法
+做一些线程池状态的判断，然后新建一个Worker，然后调用Worker里面线程的start方法。run方法走的是runWorker方法
 
 runWorker
 
@@ -358,11 +354,75 @@ AQS全称是AbstractQueuedSynchronizer，是一个用来构建锁和同步器的
 
 AQS内部使用一个volatile修饰的int变量来表示资源的状态，变量名叫state。AQS内部维护了一个先进先出的双端队列，用于存储被阻塞的线程的节点，使用head指针和tail指针标识队列的头部和尾部。节点还分是独占的还是共享的，比如ReentrantLock的节点就是独占的，Semaphore的节点是共享的。
 
-AQS获取资源的核心方法是acquire方法，在acquire里面有一个tyrAcquire方法，这是一个钩子，需要子类重写具体的资源的获取逻辑。release方法是释放资源的方法，里面有tryRelease方法，需要子类重写释放资源的具体逻辑。
+AQS获取资源的核心方法是acquire方法，在acquire里面有一个tryAcquire方法，这是一个钩子，需要子类重写具体的资源的获取逻辑。release方法是释放资源的方法，里面有tryRelease方法，需要子类重写释放资源的具体逻辑。
 
 AQS线程排队和阻塞的流程
 
+AQS使用acquire方法获取资源，使用子类重写的tryAcquire方法去做资源获取的具体的逻辑，获取资源一般都是用cas去修改state的值。如果没法获取到资源的话就需要对线程进行一个排队和阻塞。
 
+如果资源获取失败就会走addWaiter方法去生成一个等待节点然后入队，然后走acquireQueued方法去让队列的头节点的下一个节点的线程继续调用tryAcquire方法去争抢资源，这个方法还能让线程阻塞，当线程的前一个节点状态是signal的时候就会阻塞当前节点的线程。
+
+为什么是头节点的下一个节点？
+
+在线程入队的时候，如果队列里面没有元素的话是先初始化一个默认的头节点的，之后队列里的节点获取到资源之后会把自己设置为头节点，表示当前持有资源的线程。头节点的下一个节点才是真正需要争抢资源的线程。
+
+AQS使用release方法去释放资源，会调用子类实现的tryRelease方法去做资源释放的具体逻辑，然后会判断头节点是不是初始化状态，如果不是的话就表明后续节点可能被阻塞，需要唤醒。唤醒的时候，如果下一个节点不是cancelled节点的话就唤醒，如果是的话就需要从队列从后往前扫，唤醒队列里面第一个不是cancelled的节点。
+
+为什么是从后往前扫？
+
+1.在acquireQueue方法里面，如果循环抛异常的话会进到取消节点的方法，取消节点怎么取消，他分三种情况，主要是操作被取消节点的next指针。
+
+//保留 2.节点入队的时候，是先操作pre指针，如果cas设置尾指针成功后才操作next指针
+
+synchronized与Lock
+
+1.synchronized在jvm层面实现的加锁解锁，Lock是在代码层面实现的。
+
+2.synchronized会自动释放锁，Lock需要显示释放锁。
+
+3.synchronized不能响应中断，Lock能响应中断。
+
+4.Lock能通过tryLock得知是否获取锁成功，synchronized无法得知是否获取锁成功。
+
+5.Lock功能更多，能区分公平非公平，可重入，还能使用condition去定向的阻塞和唤醒线程，还能分读写锁。
+
+一般使用Lock。
+
+Lock的种类
+
+1.ReentrantLock，互斥锁
+
+//Condition原理
+
+保留
+
+//
+
+2.ReentrantReadWriteLock，分读写锁，读读不互斥，读写互斥，写写互斥
+
+读写锁在读操作多的情况下容易出现写线程饥饿的情况，可以使用公平锁去避免，但会牺牲吞吐量。
+
+1.8引入StampedLock对读写锁进行增强。
+
+3.StampedLock
+
+**在读的时候如果发生了写，应该通过重试的方式来获取新的值，而不应该阻塞写操作。这种模式也就是典型的无锁编程思想，和CAS自旋的思想一样**。这种操作方式决定了StampedLock在读线程非常多而写线程非常少的场景下非常适用，同时还避免了写饥饿情况的发生。
+
+读，写，乐观读
+
+不可重入，不支持Condition
+
+Semaphore
+
+内部有一个继承了AQS的同步器，这个同步器重写了tryAcquireShared方法，他通过cas获取资源，当资源小于自己要获取的资源的时候就返回负数，线程排队。
+
+CountDownLatch
+
+内部是一个继承了AQS的实现类Sync，实现的是tryAcquireShared方法和tryReleaseShared方法，需要注意的是构造器中的**计数值（count）实际上就是闭锁需要等待的线程数量**。这个值只能被设置一次，而且CountDownLatch**没有提供任何机制去重新设置这个计数值**。
+
+使用，设置CountDownLatch的值 CountDownLatch countDownLatch = new CountDownLatch(3);
+
+线程调用await挂起，其他线程完成工作调用countDownLatch.countDown();当值是0的时候，挂起的线程从await方法返回。
 
 
 
