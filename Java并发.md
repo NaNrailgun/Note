@@ -388,11 +388,7 @@ synchronized与Lock
 
 一般使用Lock。
 
-Lock的种类
-
-1.ReentrantLock，互斥锁
-
-//Condition原理
+Condition原理
 
 在 Condition 中， 维护着一个队列，每当执行 await 方法，都会根据当前线程创建一个节点，并添加到尾部。
 
@@ -400,7 +396,9 @@ Lock的种类
 
 在被别的线程signal唤醒后，将刚刚这个节点放到 AQS 队列中，然后去排队拿锁，拿到锁之后就从await方法返回。
 
-//
+Lock的种类
+
+1.ReentrantLock，互斥锁
 
 2.ReentrantReadWriteLock，分读写锁，读读不互斥，读写互斥，写写互斥
 
@@ -428,7 +426,27 @@ CountDownLatch
 
 线程调用await挂起，其他线程完成工作调用countDownLatch.countDown();当值是0的时候，挂起的线程从await方法返回。
 
+并发容器
 
+1.CopyOnWrite容器
+
+CopyOnWriteArrayList和CopyOnWriteArraySet 
+
+CopyOnWrite是一种写时复制的思想，当我们需要向容器里写元素的时候，不是直接添加到容器里面，而是将当前容器复制一个副本，在副本里面进行我们的操作，之后再将引用指向副本。当读元素的时候就是直接去原容器里读取就行。
+
+优点：适用于读多写少的场景，因为读操作是没加锁的，所以能大幅地增强读的性能。
+
+缺点：1.需要复制，会占用内存 2.会出现短时间的数据不一致
+
+2.ConcurrentHashMap
+
+* 1.7使用分段数组加链表实现，对整个桶数组分成若干个Segment，每个Segment就是一把锁，每一个Segment存储容器中的一部分数据，多线程访问不同Segment的数据时不会产生锁冲突，降低了锁粒度，提高并发度。对元素进行操作的时候会先定位到对应的Segment获取到锁只后进行操作。
+
+  Segment是一个内部类，继承了ReentrantLock，还维护了一组HashEntry用于存储键值对数据。默认16个Segment。
+
+  size操作先是乐观的，不加锁，然后比较两次获得的结果，如果一致的话就返回，如果不一致那么就会去重试。当重试到一定的阈值的时候就会变成悲观的，加锁然后计算size再返回。（size操作先尝试不加锁，如果连续两次不加锁操作得到的结果是一致的话，那么就可以认为这个结果是正确的，如果尝试次数超过三次的话就需要对每个Segment加锁。）
+
+* 1.8取消了分段锁，采用和HashMap类似的数组链表红黑树的结构，同时使用cas和synchronized保证并发安全。以链表或者红黑树的首节点为锁，所以只要不产生hash冲突的话就不会产生并发。
 
 
 

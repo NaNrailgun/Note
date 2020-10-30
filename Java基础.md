@@ -284,16 +284,6 @@ e.next = newTable[i] 导致 key(3).next 指向了 key(7)。注意：此时的key
 
 ***
 
-#### ConcurrentHashMap
-
-* 1.7使用分段数组加链表实现，对整个桶数组进行分段，每一个Segment只锁住容器中的一部分数据，多线程访问不同数据段的数据时不会产生锁冲突，降低了锁粒度，提高并发度。对元素进行操作的时候会先定位到对应的Segment获取到锁只后进行操作。
-
-  Segment是一个内部类，继承了ReentrantLock，还维护了一组HashEntry用于存储键值对数据。默认16个Segment。
-
-  size操作先尝试不加锁，如果连续两次不加锁操作得到的结果是一致的话，那么就可以认为这个结果是正确的，如果尝试次数超过三次的话就需要对每个Segment加锁。
-
-* 1.8取消了分段锁，采用和HashMap类似的数组链表红黑树的结构，同时使用cas和synchronized保证并发安全。synchronized只锁定当前链表或者红黑树的首节点，所以只要不产生hash冲突的话就不会产生并发。
-
 #### LinkedHashMap
 
 LinkedHashMap继承自HashMap，节点类是Entry，继承了HashMap的Node，并且添加了首尾指针。
