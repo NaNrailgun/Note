@@ -433,3 +433,52 @@ G1导致的Full GC
 由jvm自带的类加载器加载的类是不会被卸载的。但是由我们自定义的类加载器加载的类是可能被卸载的。
 
 jdk自带的BootstrapClassLoader,PlatformClassLoader,AppClassLoader负责加载jdk提供的类，所以它们(类加载器的实例)肯定不会被回收。而我们自定义的类加载器的实例是可以被回收的，所以使用我们自定义加载器加载的类是可以被卸载掉的。
+
+类加载器
+
+JVM 中内置了三个重要的 ClassLoader，除了 BootstrapClassLoader 其他类加载器均由 Java 实现且全部继承自`java.lang.ClassLoader`：
+
+1. **BootstrapClassLoader(启动类加载器)** ：最顶层的加载类，由C++实现，负责加载 `%JAVA_HOME%/lib`目录下的jar包和类或者或被 `-Xbootclasspath`参数指定的路径中的所有类。
+2. **ExtensionClassLoader(扩展类加载器)** ：主要负责加载目录 `%JRE_HOME%/lib/ext` 目录下的jar包和类，或被 `java.ext.dirs` 系统变量所指定的路径下的jar包。
+3. **AppClassLoader(应用程序类加载器)** :面向我们用户的加载器，负责加载当前应用classpath下的所有jar包和类。
+
+双亲委派模型
+
+![ClassLoader](https://my-blog-to-use.oss-cn-beijing.aliyuncs.com/2019-6/classloader_WPS%E5%9B%BE%E7%89%87.png)
+
+每一个类都有一个对应它的类加载器。系统中的 ClassLoder 在协同工作的时候会默认使用 **双亲委派模型** 。即在类加载的时候，系统会首先判断当前类是否被加载过。已经被加载的类会直接返回，否则才会尝试加载。加载的时候，首先会把该请求委派该父类加载器的 `loadClass()` 处理，因此所有的请求最终都应该传送到顶层的启动类加载器 `BootstrapClassLoader` 中。当父类加载器无法处理时，才由自己来处理。当父类加载器为null时，会使用启动类加载器 `BootstrapClassLoader` 作为父类加载器。
+
+双亲委派模型避免了类的重复加载，保证了类的唯一性。如果打破双亲委派就可能会产生加载了同一个类多次，而且这些类都是互不相等的。（JVM 区分不同类的方式不仅仅根据类名，相同的类文件被不同的类加载器加载产生的是两个不同的类也保证了 Java 的核心 API 不被篡改。）
+
+![image-20201108144743484](jvm.assets/image-20201108144743484.png)
+
+打破双亲委派
+
+继承ClassLoader，重写loadClass方法（关键点），重写findClass方法。
+
+自定义ClassLoader应用：
+
+1.热部署
+
+当触发热部署的时候可以通过重新new一个ClassLoader来重新加载类。（不能使用同一个ClassLoader来重新defineClass返回新Class，因为已经有久的Class和这个ClassLoader绑定了，再定义Class的话会抛异常）
+
+![image-20201108162534063](jvm.assets/image-20201108162534063.png)
+
+2.加密
+
+对字节码文件加密，通过自定义ClassLoader对字节码解密，然后交给jvm加载。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
