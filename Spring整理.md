@@ -1,11 +1,3 @@
-
-
-
-
-
-
-
-
 ### 什么是Spring IOC
 
 IOC利用反射机制，去实现所谓的控制反转。本来被调用者的实例是由调用者来实现的，利用SpringIOC我们可以将对象交由Spring管理，让Spring帮我们创建对象和管理对象，降低对象与对象之间的耦合。Spring对于IOC控制反转是通过DI依赖注入来实现的，使得能在程序运行阶段向某个对象提供他所需要的其他对象。
@@ -38,7 +30,7 @@ IOC利用反射机制，去实现所谓的控制反转。本来被调用者的�
 
 ### Spring Bean的生命周期
 
-1.首先是在对象实例化之前调用``InstantiationAwareBeanPostProcessor``接口的postProcessBeforeInstantiation方法，如果在这个方法里返回不为空的话能够直接返回，能防止接下来的Bean实例的默认创建。应用是Spring aop在这个方法里面直接返回代理对象。
+1.首先是在对象实例化之前调用``InstantiationAwareBeanPostProcessor``接口的postProcessBeforeInstantiation方法，如果在这个方法里返回不为空的话能够直接返回，能防止接下来的Bean实例的默认创建。应用是Spring aop会判断bean是否需要代理，也可能会在这个方法里面直接返回代理对象。
 
 2.之后进行Bean的实例化。
 
@@ -64,7 +56,7 @@ IOC利用反射机制，去实现所谓的控制反转。本来被调用者的�
 
 ### @Autowried注解注入
 
-1.在doCreateBean方法中，当bean初始化完成之后会去调用``MergedBeanDefinitionPostProcessor``接口的postProcessMergedBeanDefinition方法。``AutowAutoiredAnnotationBeanPostProcessor``后置处理类实现了这个接口，所以会在这个时候调用``AutowAutoiredAnnotationBeanPostProcessor``的postProcessMergedBeanDefinition方法。
+1.在doCreateBean方法中，当bean实例化完成之后会去调用``MergedBeanDefinitionPostProcessor``接口的postProcessMergedBeanDefinition方法。``AutowAutoiredAnnotationBeanPostProcessor``后置处理类实现了这个接口。
 
 2.在postProcessMergedBeanDefinition方法中，会去找出所有的注入点，也就是被@Autowried注解修饰的方法和字段，之后再排除不符合的注入点，在这一步完成了注解的解析。
 
