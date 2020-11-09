@@ -72,17 +72,53 @@ IOC利用反射机制，去实现所谓的控制反转。本来被调用者的�
 
 ### Autowried 与 Resource
 
-1.
+Autowried和Resource注解实现注入的时候，本质上都是依靠``MergedBeanDefinitionPostProcessor``接口的postProcessMergedBeanDefinition方法去找切入点，通过``InstantiationAwareBeanPostProcessor``接口的postProcessProperties方法去将属性注入进去。基本用法差不多。
 
+区别：1.后置处理器不一样
 
+2.Autowried是byType注入，Resource默认是byName注入但也提供byName注入
 
+3.属性：
 
+@Autowired按类型装配依赖对象，默认情况下它要求依赖对象必须存在，如果允许null值，可以设置它required属性为false。如果我们想使用按名称装配，可以结合@Qualifier注解一起使用。
 
+@Resource有两个中重要的属性：name和type。name属性指定byName，如果没有指定name属性，当注解标注在字段上，即默认取字段的名称作为bean名称寻找依赖对象，当注解标注在属性的setter方法上，即默认取属性名作为bean名称寻找依赖对象。需要注意的是，@Resource如果没有指定name属性，并且按照默认的名称仍然找不到依赖对象时， @Resource注解会回退到按类型装配。但一旦指定了name属性，就只能按名称装配了。
 
+### BeanFactory 和 FactoryBean的区别
 
+BeanFactory是一个容器是一个顶层接口，为Spring管理Bean提供了一套通用规范，BeanFactory用来存储Bean的注册信息，用来实例化Bean和缓存Bean。
 
+FactoryBean是一个Bean，归BeanFactory管理，是Spring提供的一个扩展点，适用于复杂的Bean的创建，FactoryBean能通过实现getObject方法来生产其他Bean实例。BeanFactory调用getBean获取FactoryBean时，name加了&为获取FactoryBean本身，如果没加&就是获取getObject方法返回的对象。
 
+### 如何将一个对象交给Spring管理
 
+1.实现FactoryBean接口，重写getObject方法
+
+2.使用@Bean注解，在@Bean注解标注的方法直接返回对象
+
+3.使用xml配置的factory-method，原理和@Bean差不多
+
+* FactoryBean
+
+  是通过调用getObject方法获得对象，然后将这个对象放进factoryBeanInstanceCache中保存。
+
+  具体流程：
+
+  1.FactoryBean如果需要一开始就加载的话我们就需要去实现``SmartFactoryBean``接口然后重写它的isEagerInit方法，表示说我的对象一开始就交给Spring管理。
+
+  2.然后会调用getBean方法，先加个&获取FatoryBean本身然后放进单例池中保存。
+
+  3.然后会去做一些判断，如果符合条件的话就进行Bean初始化，调用getBean方法，这次就不加&了。
+
+  （之后会走doGetBean，然后获取单例池里面的FactoryBean作为instance参数走到getObjectForBeanInstance方法里面。在这个方法里面会去通过name有没有加&去判断要获取的Bean到底是哪个，如果是要获取FactoryBean的话就直接返回instance，如果要获取Bean的话就去看看cache里有没有，没有的话就调用getObject方法获取，然后返回）
+
+  4.这次就会调用getObject方法获取Bean，然后把这个Bean放在cache里面保存。
+
+* factory-method 和 @Bean 是工厂方法将对象交给Spring管理的两种不同的方式（原理相同）
+
+  都会将需要交给Spring管理的Bean信息注册，factory-method在读取xml阶段就能直接注册进beandefinitionMap里面，而@Bean是通过一个BeanFactoryPostProcessor，beanfactory后置处理器去解析@Bean标注的方法然后注册进Map里面，然后在实例化对象的时候使用指定的factory-method实例化Bean，然后将这个Bean放入单例池中保存。
+
+![image-20201109201102615](Spring整理.assets/image-20201109201102615.png)
 
 
 
@@ -114,4 +150,8 @@ AOP，面向切面编程。面向对象编程解决了**业务模块的封装复
 
 # to do
 
-FactoryBean的定义，获取过程
+循环依赖
+
+aop
+
+事务
