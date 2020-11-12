@@ -30,7 +30,7 @@ IOC利用反射机制，去实现所谓的控制反转。本来被调用者的�
 
 ### Spring Bean的生命周期
 
-1.首先是在对象实例化之前调用``InstantiationAwareBeanPostProcessor``接口的postProcessBeforeInstantiation方法，如果在这个方法里返回不为空的话能够直接返回，能防止接下来的Bean实例的默认创建。应用是Spring aop会判断bean是否需要代理，也可能会在这个方法里面直接返回代理对象。
+1.首先是在对象实例化之前调用``InstantiationAwareBeanPostProcessor``接口的postProcessBeforeInstantiation方法，如果在这个方法里返回不为空的话能够直接返回，能防止接下来的Bean实例的默认创建。我们可以在这里直接返回一个代理对象，截断接下来的Bean实例化操作。
 
 2.之后进行Bean的实例化。
 
@@ -90,24 +90,6 @@ spring在什么情况下可以解决循环依赖
 > 第三级缓存存储的生产早期Bean的工厂，如果不结合aop的话就只是将早起Bean原封不动的返回而已，所以不结合aop的话，第三级缓存基本没什么作用。
 >
 > 三级缓存在结合了aop的场景的作用是为了延迟对Bean的代理，只有真正发生了循环依赖的时候才会去提前生成代理对象，否则只会创建一个工厂放在三级缓存里面，而不会通过这个工厂去真正的创建对象。如果没有了三级缓存，就意味着需要将提前暴露所有早期Bean，如果结合了aop的话就必须在这一步完成代理，这是没有必要的。Spring对于aop的设计，是使用``AnnotationAwareAspectJAutoProxyCreator``后置处理器让Bean在Bean的生命周期的最后一步再完成aop代理，而不是在Bean实例化之后就立马进行aop代理。
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ### @Autowried注解注入
 
@@ -173,14 +155,103 @@ AOP，面向切面编程。面向对象编程解决了**业务模块的封装复
 
 面向切面编程，指的是将一定的切面逻辑按照一定的方式编织到指定的业务模块中，从而将这些业务模块的调用包裹起来。SpringAOP是基于动态代理的，可以依赖JDK动态代理也可以依赖Cglib动态代理。
 
-动态代理
+### 静态代理
+
+代理对象代理真实对象，对真实对象的方法进行增强。
+
+### 动态代理
+
+* jdk动态代理
+
+  需要先实现一个``InvocationHandler``去定义我们方法的增强策略，然后拿这个handler去Proxy newProxyInstance去动态生成字节码，生成代理类，最后创建一个代理对象出来，这个代理对象会对方法进行增强之后反射调用真实对象的方法。动态生成的代理类继承了Proxy类，由于Java的单继承，所以如果没有提供接口的话就无法使用jdk动态代理。
+
+  生成的代理类的成员变量是Method，调用方法的时候会拿着这个Method去到``InvocationHandler``调用invoke方法，这个handler就是我们定义的handler。
+
+![image-20201112165522023](Spring整理.assets/image-20201112165522023.png)
+
+* cglib动态代理
+
+  cglib通过字节码框架动态生成代理类，这个代理类是继承于目标类的。代理类重写了目标类需要增强的方法。所以cglib不需要提供接口，但它不能增强final修饰的方法，因为final修饰的方法不能被重写。
+
+
+### aop流程
+
+当我们开启@EnableAspectJAutoProxy注解的时候会向容器里面注册一个AnnotationAwareAspectJAutoProxyCreator后置处理器。这个后置处理器会帮助我们在目标Bean的生命周期最后一步完成代理。
+
+在Bean创建的生命周期的最后一步会回调BeanProcessor的postProcessAfterInitialization方法，就会进到AnnotationAwareAspectJAutoProxyCreator实现了postProcessAfterInitialization方法，在这个方法里面实现了对Bean的代理。
+
+1.在这个方法里面，首先会判断这个Bean有没有被代理过了，被代理过就直接返回，没有的话就走代理流程。
+
+2.然后会去扫描当前容器中带有AspectJ注解的Bean，然后返回所有通知。
+
+3.创建代理，使用一个proxyFactory去创建代理对象。
+
+4.在这个工厂里面去判断使用jdk动态代理还是cglib动态代理，然后使用对应的动态代理创建出代理对象。
+
+调用代理对象的时候最终会走到invoke方法里面，在这个方法里面会去获取一个通知链，执行这个链就能实现通知的调用。
+
+### Spring事务
+
+什么是事务
+
+事务时逻辑上的一组操作，要么都执行，要么都不执行。
+
+事务的特性（ACID）
+
+- **原子性（Atomicity）：** 一个事务无可分裂，不可约简。一个事务中的所有操作，要么全部执行，要么都不执行，不会结束在中间的某个环节。事务在执行中发生错误会回滚到事务发生前的状态，就像这个事务从来没有被执行过一样。
+- **隔离性（Isolation）：** 数据库允许多个并发事务同时对其数据进行读写和修改的能力，隔离性可以防止多个事务并发执行时由于交叉执行而导致数据的不一致。事务隔离分为不同级别，包括未提交读（Read uncommitted）、提交读（read committed）、可重复读（repeatable read）和串行化（Serializable）。
+- **持久性（Durability）:** 事务处理结束后，对数据的修改就是永久的，即便系统故障也不会丢失。
+- **一致性（Consistency）：**一致性是一个目的，通过原子性，隔离性，持久性来实现。
+
+事务传播行为
+
+| 行为类型             | 说明                                                         |
+| -------------------- | ------------------------------------------------------------ |
+| propagation_required | 如果当前没有事务就新建一个事务，如果已经存在一个事务，加入到这个事务中 |
+| supports             | 支持当前事务，如果当前没有事务就以非事务的方式执行           |
+| mandatory            | 使用当前的事务，如果当前没有事务就抛异常                     |
+| requires_new         | 新建事务，如果当前存在事务，就把当前事务挂起                 |
+| not_supported        | 以非事务的方式执行，如果当前存在事务就把当前事务挂起         |
+| never                | 以非事务的方式执行，如果当前存在事务就抛异常                 |
+| nested               | 如果当前存在事务，就在嵌套事务（子事务）内执行。如果当前没有事务，则新建一个事务 |
+
+事务隔离级别
+
+- **`TransactionDefinition.ISOLATION_DEFAULT`** :使用后端数据库默认的隔离级别，MySQL 默认采用的 `REPEATABLE_READ` 隔离级别 Oracle 默认采用的 `READ_COMMITTED` 隔离级别.
+- **`TransactionDefinition.ISOLATION_READ_UNCOMMITTED`** :最低的隔离级别，使用这个隔离级别很少，因为它允许读取尚未提交的数据变更，**可能会导致脏读、幻读或不可重复读**
+- **`TransactionDefinition.ISOLATION_READ_COMMITTED`** : 允许读取并发事务已经提交的数据，**可以阻止脏读，但是幻读或不可重复读仍有可能发生**
+- **`TransactionDefinition.ISOLATION_REPEATABLE_READ`** : 对同一字段的多次读取结果都是一致的，除非数据是被本身事务自己所修改，**可以阻止脏读和不可重复读，但幻读仍有可能发生。**（MySQL在可重复读级别下通过next-key lock能防止幻读）
+- **`TransactionDefinition.ISOLATION_SERIALIZABLE`** : 最高的隔离级别，完全服从 ACID 的隔离级别。所有的事务依次逐个执行，这样事务之间就完全不可能产生干扰，也就是说，**该级别可以防止脏读、不可重复读以及幻读**。但是这将严重影响程序的性能。通常情况下也不会用到该级别。
+
+事务超时
+
+一个事务超过限定时间还未执行完成的话就回滚这个事务。
+
+事务只读
+
+对于只有读取数据查询的事务可以使用只读事务。只读事务不涉及数据的修改，数据库会提供一些优化手段。MySQL默认对每个新建立的连接启用了autocommit模式。在这个模式下，每一个发送到MySQL服务器的sql语句都会使用一个单独的事务进行处理。
+
+当我们需要统计信息的时候，需要保证这一系列的查询是在同一个事务里面，才能保证数据的前后一致，这时候就可以使用事务只读。
+
+事务回滚
+
+默认情况下，事务只有在遇到RuntimeException和Error时才会回滚。但遇到Checked异常不会回滚。
+
+@Transaction失效场景
+
+1.数据库不支持事务
+
+2.方法不是public
+
+3.自身调用
+
+4.异常被catch住
+
+5.回滚的异常类型设置错误
 
 
 
 
 
-# to do
 
-aop，结合Bean生命周期谈应用
 
-事务
