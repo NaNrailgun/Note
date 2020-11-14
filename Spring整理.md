@@ -182,28 +182,28 @@ AOP，面向切面编程。面向对象编程解决了**业务模块的封装复
 
 1.在这个方法里面，首先会判断这个Bean有没有被代理过了，被代理过就直接返回，没有的话就走代理流程。
 
-2.然后会去扫描当前容器中带有AspectJ注解的Bean，然后返回所有通知。
+2.然后会去扫描当前容器中带有AspectJ注解的Bean，然后返回需要符合条件的通知。
 
 3.创建代理，使用一个proxyFactory去创建代理对象。
 
 4.在这个工厂里面去判断使用jdk动态代理还是cglib动态代理，然后使用对应的动态代理创建出代理对象。
 
-调用代理对象的时候最终会走到invoke方法里面，在这个方法里面会去获取一个通知链，执行这个链就能实现通知的调用。
+调用代理对象的时候最终会走到invoke方法里面，在这个方法里面会根据之前得到的符合条件的通知去获取一个拦截链，执行这个链就能实现通知的调用。
 
 ### Spring事务
 
-什么是事务
+##### 什么是事务
 
 事务时逻辑上的一组操作，要么都执行，要么都不执行。
 
-事务的特性（ACID）
+##### 事务的特性（ACID）
 
 - **原子性（Atomicity）：** 一个事务无可分裂，不可约简。一个事务中的所有操作，要么全部执行，要么都不执行，不会结束在中间的某个环节。事务在执行中发生错误会回滚到事务发生前的状态，就像这个事务从来没有被执行过一样。
 - **隔离性（Isolation）：** 数据库允许多个并发事务同时对其数据进行读写和修改的能力，隔离性可以防止多个事务并发执行时由于交叉执行而导致数据的不一致。事务隔离分为不同级别，包括未提交读（Read uncommitted）、提交读（read committed）、可重复读（repeatable read）和串行化（Serializable）。
 - **持久性（Durability）:** 事务处理结束后，对数据的修改就是永久的，即便系统故障也不会丢失。
 - **一致性（Consistency）：**一致性是一个目的，通过原子性，隔离性，持久性来实现。
 
-事务传播行为
+##### 事务传播行为
 
 | 行为类型             | 说明                                                         |
 | -------------------- | ------------------------------------------------------------ |
@@ -215,7 +215,7 @@ AOP，面向切面编程。面向对象编程解决了**业务模块的封装复
 | never                | 以非事务的方式执行，如果当前存在事务就抛异常                 |
 | nested               | 如果当前存在事务，就在嵌套事务（子事务）内执行。如果当前没有事务，则新建一个事务 |
 
-事务隔离级别
+##### 事务隔离级别
 
 - **`TransactionDefinition.ISOLATION_DEFAULT`** :使用后端数据库默认的隔离级别，MySQL 默认采用的 `REPEATABLE_READ` 隔离级别 Oracle 默认采用的 `READ_COMMITTED` 隔离级别.
 - **`TransactionDefinition.ISOLATION_READ_UNCOMMITTED`** :最低的隔离级别，使用这个隔离级别很少，因为它允许读取尚未提交的数据变更，**可能会导致脏读、幻读或不可重复读**
@@ -223,21 +223,21 @@ AOP，面向切面编程。面向对象编程解决了**业务模块的封装复
 - **`TransactionDefinition.ISOLATION_REPEATABLE_READ`** : 对同一字段的多次读取结果都是一致的，除非数据是被本身事务自己所修改，**可以阻止脏读和不可重复读，但幻读仍有可能发生。**（MySQL在可重复读级别下通过next-key lock能防止幻读）
 - **`TransactionDefinition.ISOLATION_SERIALIZABLE`** : 最高的隔离级别，完全服从 ACID 的隔离级别。所有的事务依次逐个执行，这样事务之间就完全不可能产生干扰，也就是说，**该级别可以防止脏读、不可重复读以及幻读**。但是这将严重影响程序的性能。通常情况下也不会用到该级别。
 
-事务超时
+##### 事务超时
 
 一个事务超过限定时间还未执行完成的话就回滚这个事务。
 
-事务只读
+##### 事务只读
 
 对于只有读取数据查询的事务可以使用只读事务。只读事务不涉及数据的修改，数据库会提供一些优化手段。MySQL默认对每个新建立的连接启用了autocommit模式。在这个模式下，每一个发送到MySQL服务器的sql语句都会使用一个单独的事务进行处理。
 
 当我们需要统计信息的时候，需要保证这一系列的查询是在同一个事务里面，才能保证数据的前后一致，这时候就可以使用事务只读。
 
-事务回滚
+##### 事务回滚
 
 默认情况下，事务只有在遇到RuntimeException和Error时才会回滚。但遇到Checked异常不会回滚。
 
-@Transaction失效场景
+##### @Transaction失效场景
 
 1.数据库不支持事务
 
@@ -249,9 +249,176 @@ AOP，面向切面编程。面向对象编程解决了**业务模块的封装复
 
 5.回滚的异常类型设置错误
 
+##### 事务原理
+
+Spring容器在初始化每个单例bean的时候，会遍历容器中的所有BeanPostProcessor实现类，并执行其postProcessAfterInitialization方法，在执行AbstractAutoProxyCreator类的postProcessAfterInitialization方法时会遍历容器中所有的切面，查找与当前实例化bean匹配的切面，这里会获取事务属性切面，查找@Transactional注解及其属性值，然后根据得到的切面创建一个代理对象，默认是使用JDK动态代理创建代理，如果目标类是接口，则使用JDK动态代理，否则使用Cglib。在创建代理的过程中会获取当前目标方法对应的拦截器，此时会得到TransactionInterceptor实例，在它的invoke方法中实现事务的开启和回滚，在需要进行事务操作的时候，Spring会在调用目标类的目标方法之前进行开启事务、调用异常回滚事务、调用完成会提交事务。是否需要开启新事务，是根据@Transactional注解上配置的参数值来判断的。如果需要开启新事务，获取Connection连接，然后将连接的自动提交事务改为false，改为手动提交。当对目标类的目标方法进行调用的时候，若发生异常将会进入completeTransactionAfterThrowing方法。 
+
+如果在类A上标注Transactional注解，Spring容器会在启动的时候，为类A创建一个代理类B，类A的所有public方法都会在代理类B中有一个对应的代理方法，调用类A的某个public方法会进入对应的代理方法中进行处理；如果只在类A的b方法(使用public修饰)上标注Transactional注解，Spring容器会在启动的时候，为类A创建一个代理类B，但只会为类A的b方法创建一个代理方法，调用类A的b方法会进入对应的代理方法中进行处理，调用类A的其它public方法，则还是进入类A的方法中处理。在进入代理类的某个方法之前，会先执行TransactionInterceptor类中的invoke方法，完成整个事务处理的逻辑，如是否开启新事务、在目标方法执行期间监测是否需要回滚事务、目标方法执行完成后提交事务等。
+
+#### Spring 设计模式
 
 
 
 
 
+
+
+
+
+#### Spring MVC 执行流程
+
+![SpringMVC运行原理](http://my-blog-to-use.oss-cn-beijing.aliyuncs.com/18-10-11/49790288.jpg)
+
+1. 客户端（浏览器）发送请求，直接请求到 `DispatcherServlet`。
+2. `DispatcherServlet` 根据请求信息调用 `HandlerMapping`，解析请求对应的 `Handler`。
+3. 解析到对应的 `Handler`（也就是我们平常说的 `Controller` 控制器）后，开始由 `HandlerAdapter` 适配器处理。
+4. `HandlerAdapter` 会根据 `Handler `来调用真正的处理器来处理请求，并处理相应的业务逻辑。
+5. 处理器处理完业务后，会返回一个 `ModelAndView` 对象，`Model` 是返回的数据对象，`View` 是个逻辑上的 `View`。
+6. `ViewResolver` 会根据逻辑 `View` 查找实际的 `View`。
+7. `DispaterServlet` 把返回的 `Model` 传给 `View`（视图渲染）。
+8. 把 `View` 返回给请求者（浏览器）
+
+如果返回json的话，使用@ResponseBody注解，就不走视图解析器，直接返回了。
+
+#### SpringBoot理解
+
+`Spring Boot`基本上是`Spring`框架的扩展，它消除了设置`Spring`应用程序所需的`XML配置`。
+
+**`Spring Boot`中的一些特征：**
+
+1. 创建独立的`Spring`应用
+2. 嵌入式`Tomcat`、`Jetty`、 `Undertow`容器（无需部署war文件）
+3. 提供的`starters` 简化构建配置
+4. 提供自动装配，使得整合其他框架时变得简单
+
+#### SpringBoot Starter
+
+Spring Boot Starters 是一系列依赖关系的集合，因为它的存在，项目的依赖之间的关系对我们来说变的更加简单了。举个例子：在没有Spring Boot Starters之前，我们开发REST服务或Web应用程序时; 我们需要使用像Spring MVC，Jackson这样的库，这些依赖我们需要手动一个一个添加。但是，有了 Spring Boot Starters 我们只需要一个只需添加一个**spring-boot-starter-web**一个依赖就可以了，这个依赖包含的字依赖中包含了我们开发REST 服务需要的所有依赖。
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+```
+
+#### SpringBoot 启动流程
+
+主要看run方法
+
+```java
+// SpringApplication.java
+
+public ConfigurableApplicationContext run(String... args) {
+	// new 一个StopWatch用于统计run启动过程花了多少时间
+	StopWatch stopWatch = new StopWatch();
+	// 开始计时
+	stopWatch.start();
+	ConfigurableApplicationContext context = null;
+	// exceptionReporters集合用来存储异常报告器，用来报告SpringBoot启动过程的异常
+	Collection<SpringBootExceptionReporter> exceptionReporters = new ArrayList<>();
+	// 配置headless属性，即“java.awt.headless”属性，默认为ture
+	// 其实是想设置该应用程序,即使没有检测到显示器,也允许其启动.对于服务器来说,是不需要显示器的,所以要这样设置.
+	configureHeadlessProperty();
+	// 【1】从spring.factories配置文件中加载到EventPublishingRunListener对象并赋值给SpringApplicationRunListeners
+	// EventPublishingRunListener对象主要用来发射SpringBoot启动过程中内置的一些生命周期事件，标志每个不同启动阶段
+	SpringApplicationRunListeners listeners = getRunListeners(args);
+	// 启动SpringApplicationRunListener的监听，表示SpringApplication开始启动。
+	// 》》》》》发射【ApplicationStartingEvent】事件
+	listeners.starting();
+	try {
+		// 创建ApplicationArguments对象，封装了args参数
+		ApplicationArguments applicationArguments = new DefaultApplicationArguments(
+				args);
+		// 【2】准备环境变量，包括系统变量，环境变量，命令行参数，默认变量，servlet相关配置变量，随机值，
+		// JNDI属性值，以及配置文件（比如application.properties）等，注意这些环境变量是有优先级的
+		// 》》》》》发射【ApplicationEnvironmentPreparedEvent】事件
+		ConfigurableEnvironment environment = prepareEnvironment(listeners,
+				applicationArguments);
+		// 配置spring.beaninfo.ignore属性，默认为true，即跳过搜索BeanInfo classes.
+		configureIgnoreBeanInfo(environment);
+		// 【3】控制台打印SpringBoot的bannner标志
+		Banner printedBanner = printBanner(environment);
+		// 【4】根据不同类型创建不同类型的spring applicationcontext容器
+		// 因为这里是servlet环境，所以创建的是AnnotationConfigServletWebServerApplicationContext容器对象
+		context = createApplicationContext();
+		// 【5】从spring.factories配置文件中加载异常报告期实例，这里加载的是FailureAnalyzers
+		// 注意FailureAnalyzers的构造器要传入ConfigurableApplicationContext，因为要从context中获取beanFactory和environment
+		exceptionReporters = getSpringFactoriesInstances(
+				SpringBootExceptionReporter.class,
+				new Class[] { ConfigurableApplicationContext.class }, context); // ConfigurableApplicationContext是AnnotationConfigServletWebServerApplicationContext的父接口
+		// 【6】为刚创建的AnnotationConfigServletWebServerApplicationContext容器对象做一些初始化工作，准备一些容器属性值等
+		// 1）为AnnotationConfigServletWebServerApplicationContext的属性AnnotatedBeanDefinitionReader和ClassPathBeanDefinitionScanner设置environgment属性
+		// 2）根据情况对ApplicationContext应用一些相关的后置处理，比如设置resourceLoader属性等
+		// 3）在容器刷新前调用各个ApplicationContextInitializer的初始化方法，ApplicationContextInitializer是在构建SpringApplication对象时从spring.factories中加载的
+		// 4）》》》》》发射【ApplicationContextInitializedEvent】事件，标志context容器被创建且已准备好
+		// 5）从context容器中获取beanFactory，并向beanFactory中注册一些单例bean，比如applicationArguments，printedBanner
+		// 6）TODO 加载bean到application context，注意这里只是加载了部分bean比如mainApplication这个bean，大部分bean应该是在AbstractApplicationContext.refresh方法中被加载？这里留个疑问先
+		// 7）》》》》》发射【ApplicationPreparedEvent】事件，标志Context容器已经准备完成
+		prepareContext(context, environment, listeners, applicationArguments,
+				printedBanner);
+		// 【7】刷新容器，这一步至关重要，以后会在分析Spring源码时详细分析，主要做了以下工作：
+		// 1）在context刷新前做一些准备工作，比如初始化一些属性设置，属性合法性校验和保存容器中的一些早期事件等；
+		// 2）让子类刷新其内部bean factory,注意SpringBoot和Spring启动的情况执行逻辑不一样
+		// 3）对bean factory进行配置，比如配置bean factory的类加载器，后置处理器等
+		// 4）完成bean factory的准备工作后，此时执行一些后置处理逻辑，子类通过重写这个方法来在BeanFactory创建并预准备完成以后做进一步的设置
+		// 在这一步，所有的bean definitions将会被加载，但此时bean还不会被实例化
+		// 5）执行BeanFactoryPostProcessor的方法即调用bean factory的后置处理器：
+		// BeanDefinitionRegistryPostProcessor（触发时机：bean定义注册之前）和BeanFactoryPostProcessor（触发时机：bean定义注册之后bean实例化之前）
+		// 6）注册bean的后置处理器BeanPostProcessor，注意不同接口类型的BeanPostProcessor；在Bean创建前后的执行时机是不一样的
+		// 7）初始化国际化MessageSource相关的组件，比如消息绑定，消息解析等
+		// 8）初始化事件广播器，如果bean factory没有包含事件广播器，那么new一个SimpleApplicationEventMulticaster广播器对象并注册到bean factory中
+		// 9）AbstractApplicationContext定义了一个模板方法onRefresh，留给子类覆写，比如ServletWebServerApplicationContext覆写了该方法来创建内嵌的tomcat容器
+		// 10）注册实现了ApplicationListener接口的监听器，之前已经有了事件广播器，此时就可以派发一些early application events
+		// 11）完成容器bean factory的初始化，并初始化所有剩余的单例bean。这一步非常重要，一些bean postprocessor会在这里调用。
+		// 12）完成容器的刷新工作，并且调用生命周期处理器的onRefresh()方法，并且发布ContextRefreshedEvent事件
+		refreshContext(context);
+		// 【8】执行刷新容器后的后置处理逻辑，注意这里为空方法
+		afterRefresh(context, applicationArguments);
+		// 停止stopWatch计时
+		stopWatch.stop();
+		// 打印日志
+		if (this.logStartupInfo) {
+			new StartupInfoLogger(this.mainApplicationClass)
+					.logStarted(getApplicationLog(), stopWatch);
+		}
+		// 》》》》》发射【ApplicationStartedEvent】事件，标志spring容器已经刷新，此时所有的bean实例都已经加载完毕
+		listeners.started(context);
+		// 【9】调用ApplicationRunner和CommandLineRunner的run方法，实现spring容器启动后需要做的一些东西比如加载一些业务数据等
+		callRunners(context, applicationArguments);
+	}
+	// 【10】若启动过程中抛出异常，此时用FailureAnalyzers来报告异常
+	// 并》》》》》发射【ApplicationFailedEvent】事件，标志SpringBoot启动失败
+	catch (Throwable ex) {
+		handleRunFailure(context, ex, exceptionReporters, listeners);
+		throw new IllegalStateException(ex);
+	}
+
+	try {
+		// 》》》》》发射【ApplicationReadyEvent】事件，标志SpringApplication已经正在运行即已经成功启动，可以接收服务请求了。
+		listeners.running(context);
+	}
+	// 若出现异常，此时仅仅报告异常，而不会发射任何事件
+	catch (Throwable ex) {
+		handleRunFailure(context, ex, exceptionReporters, null);
+		throw new IllegalStateException(ex);
+	}
+	// 【11】最终返回容器
+	return context;
+}
+```
+
+1. 计时器开始计时
+2. 广播启动事件（监听器模式）向一系列的监听器广播事件，监听器接收到事件之后判断这个事件自己感不感兴趣，不感兴趣就直接丢掉，感兴趣的话就执行相对应的逻辑。
+3. 广播准备事件去准备环境变量
+4. 控制台打印banner标志
+5. 根据不同环境创建不同的ApplicationContext容器
+6. 为刚才创建的容器做一些初始化操作
+7. 刷新容器（注册bean，实例化bean）
+8. 计时器停止计时
+9. 广播启动结束事件
+
+#### SpringBoot 自动装配原理
+
+在刷新容器阶段，通过使用一个ConfigurationClassPostProcessor的BeanFactory后置处理器去解析启动类，会把启动类作为一个配置类处理，会去处理@ComponentScan注解，处理@Import，去引入AutoConfigurationImportSelector，之后通过这个AutoConfigurationImportSelector去读取META-INF/spring.factories文件，读取对应的配置类信息。拿到这个配置类之后解析这个配置类，处理@Bean注解，将我们需要自动配置的类注册到容器里面。
 
