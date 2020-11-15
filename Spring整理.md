@@ -2,6 +2,13 @@
 
 IOC利用反射机制，去实现所谓的控制反转。本来被调用者的实例是由调用者来实现的，利用SpringIOC我们可以将对象交由Spring管理，让Spring帮我们创建对象和管理对象，降低对象与对象之间的耦合。Spring对于IOC控制反转是通过DI依赖注入来实现的，使得能在程序运行阶段向某个对象提供他所需要的其他对象。
 
+### Spring Bean 作用域
+
+- singleton : 唯一 bean 实例，Spring 中的 bean 默认都是单例的。
+- prototype : 每次请求都会创建一个新的 bean 实例。
+- request : 每一次HTTP请求都会产生一个新的bean，该bean仅在当前HTTP request内有效。
+- session : 每一次HTTP请求都会产生一个新的 bean，该bean仅在当前 HTTP session 内有效。
+
 ### SpringIOC加载流程
 
 以```ClassPathXmlApplicationContext```为例，使用```ClassPathXmlApplicationContext```实例化```ApplicationContext```接口，传入参数是我们的xml文件路径。
@@ -257,13 +264,27 @@ Spring容器在初始化每个单例bean的时候，会遍历容器中的所有B
 
 #### Spring 设计模式
 
+1. 单例模式
 
+2. 工厂模式（Spring IOC容器就是一个工厂，我们把对象交给Spring创建，我们直接获取就行）
 
+3. 代理模式（AOP）
 
+4. 监听器模式
 
+   上下文启动时发送的事件 `ContextStartedEvent` # ApplicationContext注入到BeanFactory后会执行start方法触发该事件
 
+   上下文停止时发送的事件`ContextStoppedEvent`, #销毁bean时会调用该事件
 
+   上下文关闭时发送的事件 `ContextClosedEvent`, #销毁bean时会调用该事件
 
+   上下文刷完成新时发送的事件`ContextRefreshedEvent`, # 刷新完成时会调用该事件
+
+5. 装饰器模式
+
+   ioc流程中，实例化bean之后就是返回了一个BeanWrapper类，对Bean进行了包装，记录了Bean的一些属性。
+
+6. 模板方法 （JdbcTemplate，把jdbc进一步封装，帮我们把获取数据库连接，创建statement，关闭连接，关闭statement，处理异常这些流程一样的代码都写好了。我们只需要提供sql和映射就能执行。注意：JdbcTemplate并没有使用常规模板方法的继承重写钩子方法的形式，而是使用回调的形式）
 
 #### Spring MVC 执行流程
 
@@ -422,3 +443,37 @@ public ConfigurableApplicationContext run(String... args) {
 
 在刷新容器阶段，通过使用一个ConfigurationClassPostProcessor的BeanFactory后置处理器去解析启动类，会把启动类作为一个配置类处理，会去处理@ComponentScan注解，处理@Import，去引入AutoConfigurationImportSelector，之后通过这个AutoConfigurationImportSelector去读取META-INF/spring.factories文件，读取对应的配置类信息。拿到这个配置类之后解析这个配置类，处理@Bean注解，将我们需要自动配置的类注册到容器里面。
 
+### Mybatis
+
+1.#和$的区别
+
+- `${}`是 Properties 文件中的变量占位符，它可以用于标签属性值和 sql 内部，属于静态文本替换，比如${driver}会被静态替换为`com.mysql.jdbc.Driver`。
+- `#{}`是 sql 的参数占位符，MyBatis 会将 sql 中的`#{}`替换为?号，在 sql 执行前会使用 PreparedStatement 的参数设置方法，按序给 sql 的?号占位符设置参数值，比如 ps.setInt(0, parameterValue)，`#{item.name}` 的取值方式为使用反射从参数对象中获取 item 对象的 name 属性值，相当于 `param.getItem().getName()`。
+
+2.xml标签
+
+![image-20201115225449623](Spring整理.assets/image-20201115225449623.png)
+
+3.Dao接口原理
+
+Dao 接口，就是人们常说的 `Mapper`接口，接口的全限名，就是映射文件中的 namespace 的值，接口的方法名，就是映射文件中`MappedStatement`的 id 值，接口方法内的参数，就是传递给 sql 的参数。`Mapper`接口是没有实现类的，当调用接口方法时，接口全限名+方法名拼接字符串作为 key 值，可唯一定位一个`MappedStatement`，举例：`com.mybatis3.mappers.StudentDao.findStudentById`，可以唯一找到 namespace 为`com.mybatis3.mappers.StudentDao`下面`id = findStudentById`的`MappedStatement`。在 MyBatis 中，每一个<select>、<update> ... 标签，都会被解析为一个`MappedStatement`对象。
+
+Dao 接口里的方法，是不能重载的，因为是全限名+方法名的保存和寻找策略。
+
+Dao 接口的工作原理是 JDK 动态代理，MyBatis 运行时会使用 JDK 动态代理为 Dao 接口生成代理 proxy 对象，代理对象 proxy 会拦截接口方法，转而执行`MappedStatement`所代表的 sql，然后将 sql 执行结果返回。
+
+4.Mybatis缓存
+
+查询的时候会进行缓存，执行增删改时，缓存失效。
+
+1. MyBatis一级缓存的生命周期和SqlSession一致。
+2. MyBatis一级缓存内部设计简单，只是一个没有容量限定的HashMap，在缓存的功能性上有所欠缺。
+3. MyBatis的一级缓存最大范围是SqlSession内部，有多个SqlSession或者分布式的环境下，数据库写操作会引起脏数据，建议设定缓存级别为Statement。
+
+1. MyBatis的二级缓存相对于一级缓存来说，实现了`SqlSession`之间缓存数据的共享，同时粒度更加的细，能够到`namespace`级别，通过Cache接口实现类不同的组合，对Cache的可控性也更强。
+2. MyBatis在多表查询时，极大可能会出现脏数据，有设计上的缺陷，安全使用二级缓存的条件比较苛刻。
+3. 在分布式环境下，由于默认的MyBatis Cache实现都是基于本地的，分布式环境下必然会出现读取到脏数据，需要使用集中式缓存将MyBatis的Cache接口实现，有一定的开发成本，直接使用Redis、Memcached等分布式缓存可能成本更低，安全性也更高。
+
+spring+mybatis，每次调用mapper新建一个sqlsession
+
+当使用@Transactional注解开启事务的时候，此时复用同一个sqlsession，使用mybatis一级缓存，可以将mybatis一级缓存的作用域由session改为statement，查询一次缓存就失效。

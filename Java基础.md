@@ -30,11 +30,15 @@ Java8使用char数组储存，Java9之后使用byte数组储存再使用coder来
 
 ##### String不可变：
 
-> 1.可以缓存hash值
+> 1.可以缓存字符串的hash值
 >
 > 2.不可变能和String常量池进行一些配合，去提升一些效率。如果一个String对象在常量池中已经存在，那么直接从常量池获取引用就行了。
 >
-> 3.安全。String经常作为参数，不可变的话可以保证参数不可变。String类使用final修饰，去防止子类重写其方法去修改字符串。不可变天生线程安全。
+> 3.安全。String经常作为参数，不可变的话可以保证参数不可变。不可变天生线程安全。
+
+String通过自身api实现不改变自身的private final char[] 实现不可变，还使用final修饰类，使之不能被继承来实现不可变。（继承能重写String方法，虽然无法修改private final char[] 数组，但是能返回一个子类成员变量，达到可变目的）
+
+![img](Java基础.assets/IWUZMD4TX`ZJ@1}O580PF.png)
 
 StringBuilder可变，线程不安全。StringBuffer可变，线程安全，内部使用synchronized同步。
 
