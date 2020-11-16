@@ -351,7 +351,7 @@ tryTransfer：
 
 #### FutureTask
 
-运行我们传入的Callable的call方法，然后将返回值或者异常存储在这个FutureTask的result里面，其他的线程能调用这个FutureTask的get方法获取result的值。当使用get去获取值的时候，如果这时候call方法还没执行完，还没得到结果，就会新建一个WaitNode节点，然后入队，然后将这个线程挂起。当计算完成得到结果的时候就会去唤醒等待队列里面的线程。
+运行我们传入的Callable的call方法，然后将返回值或者异常存储在这个FutureTask的outcome里面，其他的线程能调用这个FutureTask的get方法获取outcome的值。当使用get去获取值的时候，如果这时候call方法还没执行完，还没得到结果，就会新建一个WaitNode节点，然后入队，然后将这个线程挂起。当计算完成得到结果的时候就会去唤醒等待队列里面的线程。
 
 #### AQS
 

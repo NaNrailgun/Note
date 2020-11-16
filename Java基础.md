@@ -129,6 +129,60 @@ Throwable 父类
 
 2.运行时异常，程序运行错误。
 
+## 注解
+
+自己定义注解，加上元注解
+
+- @Target：注解的作用目标
+- @Retention：注解的生命周期
+- @Documented：注解是否应当被包含在 JavaDoc 文档中
+- @Inherited：是否允许子类继承该注解
+
+通过反射获取注解
+
+```java
+@Hello(value = "Hello Annotation class !")
+public class AnnotationTest {
+
+    @Hello(value = "Hello Annotation !")
+    public void test(){
+        System.out.println("test !");
+    }
+
+    public static void main(String[] args) {
+        //生成$Proxy0的class文件
+        System.getProperties().put("sun.misc.ProxyGenerator.saveGeneratedFiles", "true");
+
+
+        Class clazz = AnnotationTest.class;
+        Hello hello = (Hello) clazz.getAnnotation(Hello.class);
+        System.out.println(hello.value());
+        if (hello != null) {
+            Method[] methods = clazz.getMethods();
+            for (Method method : methods) {
+                Hello h = method.getAnnotation(Hello.class);
+                if (h != null) {
+                    System.out.println(method);
+                    System.out.println(h);
+                    System.out.println(h.value());
+                }
+            }
+        }
+    }
+}
+
+Hello Annotation class !
+public void test.AnnotationTest.test()
+@test.Hello(value=Hello Annotation !)
+Hello Annotation !
+```
+
+原理：当我们反射获取注解实例的时候，会使用jdk动态代理生成一个代理对象，这个对象实现了我们自定义的注解接口。然后去调用jdk提供的handler，AnnotationInvocationHandler的invoke方法，AnnotationInvocationHandler中使用一个Map存储我们注解的属性名称和属性值。invoke会根据我们method的名称去判断我们调用的是哪个方法，如果是想获取注解的属性的话，会去map里面get出来，然后返回。
+
+![image-20201116123529948](Java基础.assets/image-20201116123529948.png)
+
+![image-20201116123934908](Java基础.assets/image-20201116123934908.png)
+
 # 集合
 
 ![image-20201013170326907](Java基础.assets/image-20201013170326907.png)
