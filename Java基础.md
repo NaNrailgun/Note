@@ -352,3 +352,11 @@ LinkedHashMap维护了首位指针来维护插入顺序或者访问顺序。通�
 
 快速失败(fail-fast)是Java集合的一种错误检测机制，本质上是集合里维护着一个modCount，每次对集合元素进行修改时都会使这个modCount+1，在使用迭代器遍历集合的时候，在每一次访问元素的时候都会去比较一下modCount是否和预期的一致，如果不一致就抛ConcurrentModificationException。所以在使用迭代器遍历集合的时候不能去对调用集合的remove，add对元素进行修改，不然就会触发快速失败机制。需要删除的时候用iteractor的remove方法，这个方法能修改预期值，所以不会抛异常。
 
+***
+
+## TreeMap 的应用场景
+
+treemap适用于对key的顺序有需求的场景。遍历的话从小到大遍历。
+
+## Java 基本数据类型和包装类的区别
+
