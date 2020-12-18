@@ -468,7 +468,50 @@ JVM 中内置了三个重要的 ClassLoader，除了 BootstrapClassLoader 其他
 
 对字节码文件加密，通过自定义ClassLoader对字节码解密，然后交给jvm加载。
 
+***
 
+## 各区域发生内存溢出
+
+1. 虚拟机栈 && 本地方法栈 栈溢出 StackOverflowError； 栈拓展失败，无法申请到足够的栈内存的时候或者多线程情况下无法为某一线程分配栈空间的时候 OOM
+
+2. 堆 没有内存能完成实例的分配且无法再拓展的时候 OOM
+
+3. 方法区 方法区用来存储类的相关信息，可以在运行时动态生成大量的类去填满方法区，使用cglib，不开启缓存去生成大量的代理类去填满方法区使其OOM或者使用自定义的classloader去使用jdk动态代理创建代理类，然后把自定义的classloader保存起来，别让垃圾回收器回收。
+
+  ```java
+  List<ClassLoader> list = new ArrayList<>(10000);
+  while (true) {
+      ClassLoader myLoader = new ClassLoader() {
+          @Override
+          public Class<?> loadClass(String name) throws ClassNotFoundException {
+              try {
+                  String fileName = name.substring(name.lastIndexOf(".") + 1) + ".class";
+                  InputStream is = getClass().getResourceAsStream(fileName);
+                  if (is == null) {
+                      return super.loadClass(name);
+                  }
+                  byte[] b = new byte[is.available()];
+                  is.read(b);
+                  return defineClass(name, b, 0, b.length);
+              } catch (IOException e) {
+                  throw new ClassNotFoundException(name);
+              }
+          }
+      };
+      Class a = myLoader.loadClass("test.ProxyTest");
+      Object proxyTest = a.newInstance();
+      //获取业务类所继承的接口
+      Class[] interfaces = proxyTest.getClass().getInterfaces();
+      //代理策略
+      InvocationHandler handler = new LogHandle(proxyTest);
+      //新建代理类,生成代理对象
+      Object o = Proxy.newProxyInstance(myLoader, interfaces, handler);
+      System.out.println(o.getClass());
+      list.add(myLoader);
+  }
+  ```
+
+5. 直接内存 使用Unfase类不断申请内存，导致OOM
 
 
 
